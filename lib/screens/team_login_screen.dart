@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../services/challenge_service.dart';
 import 'admin_login_screen.dart';
 import 'challenge_screen.dart';
 
@@ -25,16 +26,49 @@ class _TeamLoginScreenState extends State<TeamLoginScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 400));
 
-    if (!mounted) return;
-    setState(() => _isLoading = false);
+    try {
+      final teamName = _teamNameController.text.trim();
 
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => ChallengeScreen(
-          teamName: _teamNameController.text.trim(),
+      // سجّل الفريق في Firestore أو رجّع الموجود
+      final teamData =
+          await ChallengeService.registerOrGetTeam(teamName);
+
+      // جيب التحديات من Firestore
+      final challenges = await ChallengeService.getChallenges();
+
+      if (!mounted) return;
+
+      if (challenges.isEmpty) {
+        setState(() => _isLoading = false);
+        _showError('مفيش تحديات لسه، كلم الأدمن!');
+        return;
+      }
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => ChallengeScreen(
+            teamName: teamName,
+            teamId: teamData['id'] as String,
+            challenges: challenges,
+            startIndex: teamData['currentChallengeIndex'] as int? ?? 0,
+          ),
         ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showError('في مشكلة في الاتصال، حاول تاني');
+    }
+  }
+
+  void _showError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -63,7 +97,7 @@ class _TeamLoginScreenState extends State<TeamLoginScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 14, vertical: 7),
                       decoration: BoxDecoration(
-                        color: AppTheme.primary,
+                        color: AppTheme.primary.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                             color: AppTheme.primary.withOpacity(0.3)),
@@ -71,14 +105,14 @@ class _TeamLoginScreenState extends State<TeamLoginScreen> {
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.person_rounded,
-                              size: 15, color: AppTheme.textPrimary),
+                          Icon(Icons.shield_outlined,
+                              size: 15, color: AppTheme.primary),
                           SizedBox(width: 5),
                           Text(
                             'أنا أدمن',
                             style: TextStyle(
                               fontSize: 12,
-                              color: AppTheme.textPrimary,
+                              color: AppTheme.primary,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -135,7 +169,6 @@ class _TeamLoginScreenState extends State<TeamLoginScreen> {
 
                       const Spacer(),
 
-                      // team name field
                       Align(
                         alignment: Alignment.centerRight,
                         child: const Text(
@@ -148,7 +181,8 @@ class _TeamLoginScreenState extends State<TeamLoginScreen> {
                       TextFormField(
                         controller: _teamNameController,
                         textAlign: TextAlign.right,
-                        style: const TextStyle(color: AppTheme.textPrimary),
+                        style:
+                            const TextStyle(color: AppTheme.textPrimary),
                         decoration: const InputDecoration(
                           hintText: 'مثلاً: الفريق الأول',
                           prefixIcon: Icon(Icons.groups_rounded,
@@ -156,7 +190,7 @@ class _TeamLoginScreenState extends State<TeamLoginScreen> {
                         ),
                         validator: (v) {
                           if (v == null || v.trim().isEmpty) {
-                            return 'اكتب اسم الفريق الأول';
+                            return 'اكتب اسم الفريق';
                           }
                           return null;
                         },

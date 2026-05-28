@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "531577447603",
+    "project_id": "unlock-it-b8583",
+    "storage_bucket": "unlock-it-b8583.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:531577447603:android:9f09f7b4d04a72b2fffcc6",
+        "android_client_info": {
+          "package_name": "com.example.unlock_it"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDpC6gHxs6Xonn0ROGgF2bPmiIAzoY2RUI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

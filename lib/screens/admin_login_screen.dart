@@ -16,7 +16,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
   bool _wrongPassword = false;
 
   // TODO: استبدل بالباسوورد الحقيقية من Firebase لاحقاً
-  static const String _adminPassword = 'admin1234';
+  static const String _adminPassword = '123456';
 
   @override
   void dispose() {
@@ -113,9 +113,9 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                     const Spacer(),
 
                     // password field
-                    Align(
+                    const Align(
                       alignment: Alignment.centerRight,
-                      child: const Text(
+                      child: Text(
                         'كلمة المرور',
                         style: TextStyle(
                             fontSize: 13, color: AppTheme.textSecondary),

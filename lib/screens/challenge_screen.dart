@@ -1,42 +1,37 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../services/challenge_service.dart';
 import 'winner_screen.dart';
-
-// بيانات وهمية للـ UI - هتتبدل بـ Firebase لاحقاً
-final List<Map<String, String>> _mockChallenges = [
-  {
-    'title': 'اوصل للنقطة الصفراء',
-    'description':
-    'روح للمكان اللي فيه الرمز الأصفر وصوّر نفسك جنبه، بعدين ادور على كلمة السر المكتوبة على الورقة الجنبه.',
-    'password': 'صفراء',
-  },
-  {
-    'title': 'حل اللغز',
-    'description':
-    'في المكان ده هتلاقي لغز مكتوب على ورقة — حله وحط الإجابة كلمة السر.',
-    'password': 'نجمة',
-  },
-  {
-    'title': 'اجمع الفريق',
-    'description':
-    'اجمع كل أفراد فريقك في مكان واحد وصوروا سيلفي جماعي، بعدين ادور على كلمة السر.',
-    'password': 'فريق',
-  },
-];
 
 class ChallengeScreen extends StatefulWidget {
   final String teamName;
-  const ChallengeScreen({super.key, required this.teamName});
+  final String teamId;
+  final List<Map<String, dynamic>> challenges;
+  final int startIndex;
+
+  const ChallengeScreen({
+    super.key,
+    required this.teamName,
+    required this.teamId,
+    required this.challenges,
+    required this.startIndex,
+  });
 
   @override
   State<ChallengeScreen> createState() => _ChallengeScreenState();
 }
 
 class _ChallengeScreenState extends State<ChallengeScreen> {
-  int _currentIndex = 0;
+  late int _currentIndex;
   final _passwordController = TextEditingController();
   bool _wrongPassword = false;
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.startIndex;
+  }
 
   @override
   void dispose() {
@@ -53,16 +48,28 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
       _wrongPassword = false;
     });
 
-    await Future.delayed(const Duration(milliseconds: 400));
-    if (!mounted) return;
-
-    final correct = _mockChallenges[_currentIndex]['password']!;
+    final correct =
+        widget.challenges[_currentIndex]['password'] as String;
 
     if (input == correct) {
+      final nextIndex = _currentIndex + 1;
+      final total = widget.challenges.length;
+
+      try {
+        // حدّث تقدم الفريق في Firestore
+        await ChallengeService.advanceTeam(
+          teamId: widget.teamId,
+          nextIndex: nextIndex,
+          totalChallenges: total,
+        );
+      } catch (_) {
+        // لو في مشكلة في الاتصال، كمّل محلياً
+      }
+
+      if (!mounted) return;
       _passwordController.clear();
 
-      if (_currentIndex + 1 >= _mockChallenges.length) {
-        // خلص كل التحديات!
+      if (nextIndex >= total) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (_) => WinnerScreen(teamName: widget.teamName),
@@ -70,12 +77,13 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
         );
       } else {
         setState(() {
-          _currentIndex++;
+          _currentIndex = nextIndex;
           _isLoading = false;
         });
         _showSuccessSnack();
       }
     } else {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
         _wrongPassword = true;
@@ -95,7 +103,8 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
         ),
         backgroundColor: AppTheme.success,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         duration: const Duration(seconds: 2),
       ),
     );
@@ -103,8 +112,8 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final challenge = _mockChallenges[_currentIndex];
-    final total = _mockChallenges.length;
+    final challenge = widget.challenges[_currentIndex];
+    final total = widget.challenges.length;
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -119,7 +128,8 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
             ),
             child: IntrinsicHeight(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 20, vertical: 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
@@ -128,8 +138,8 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Container(
-                          padding:
-                          const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
                             color: AppTheme.primary.withOpacity(0.15),
                             borderRadius: BorderRadius.circular(20),
@@ -187,7 +197,7 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              challenge['title']!,
+                              challenge['title'] as String,
                               textAlign: TextAlign.right,
                               style: const TextStyle(
                                 color: AppTheme.textPrimary,
@@ -199,7 +209,7 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
                             const Divider(color: AppTheme.border),
                             const SizedBox(height: 12),
                             Text(
-                              challenge['description']!,
+                              challenge['description'] as String,
                               textAlign: TextAlign.right,
                               style: const TextStyle(
                                 color: AppTheme.textSecondary,
@@ -214,7 +224,7 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
 
                     const SizedBox(height: 20),
 
-                    // password input section
+                    // password input
                     Align(
                       alignment: Alignment.centerRight,
                       child: const Text(
@@ -233,7 +243,9 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
                         hintText: 'اكتب كلمة السر هنا...',
                         prefixIcon: const Icon(Icons.lock_outline,
                             color: AppTheme.primary),
-                        errorText: _wrongPassword ? 'كلمة السر غلط، حاول تاني' : null,
+                        errorText: _wrongPassword
+                            ? 'كلمة السر غلط، حاول تاني'
+                            : null,
                         errorStyle: const TextStyle(
                             color: Colors.redAccent, fontSize: 12),
                       ),
@@ -246,11 +258,11 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
                       onPressed: _isLoading ? null : _submitPassword,
                       child: _isLoading
                           ? const SizedBox(
-                        height: 22,
-                        width: 22,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2),
-                      )
+                              height: 22,
+                              width: 22,
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2),
+                            )
                           : const Text('تأكيد وكمّل ✓'),
                     ),
 
