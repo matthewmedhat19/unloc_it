@@ -8,10 +8,11 @@ class ChallengeService {
       _db.collection('challenges');
   static CollectionReference get _teams =>
       _db.collection('teams');
+  static CollectionReference get _notifications =>
+      _db.collection('notifications');
 
   // ─── Challenges ────────────────────────────────
 
-  /// جيب كل التحديات مرتبة حسب الـ order
   static Future<List<Map<String, dynamic>>> getChallenges() async {
     final snap = await _challenges.orderBy('order').get();
     return snap.docs.map((d) {
@@ -20,7 +21,6 @@ class ChallengeService {
     }).toList();
   }
 
-  /// أضف تحدي جديد (Admin)
   static Future<void> addChallenge({
     required String title,
     required String description,
@@ -36,14 +36,12 @@ class ChallengeService {
     });
   }
 
-  /// احذف تحدي (Admin)
   static Future<void> deleteChallenge(String id) async {
     await _challenges.doc(id).delete();
   }
 
   // ─── Teams ─────────────────────────────────────
 
-  /// سجل فريق جديد أو رجّع الموجود
   static Future<Map<String, dynamic>> registerOrGetTeam(
       String teamName) async {
     final snap = await _teams
@@ -52,12 +50,10 @@ class ChallengeService {
         .get();
 
     if (snap.docs.isNotEmpty) {
-      // الفريق موجود قبل كده — رجّع بياناته
       final doc = snap.docs.first;
       return {'id': doc.id, ...(doc.data() as Map<String, dynamic>)};
     }
 
-    // فريق جديد
     final ref = await _teams.add({
       'name': teamName,
       'currentChallengeIndex': 0,
@@ -74,7 +70,6 @@ class ChallengeService {
     };
   }
 
-  /// تقدّم الفريق للتحدي الجاي
   static Future<void> advanceTeam({
     required String teamId,
     required int nextIndex,
@@ -86,15 +81,77 @@ class ChallengeService {
       'done': done,
       if (done) 'completedAt': FieldValue.serverTimestamp(),
     });
+
+    // لو الفريق خلص → ابعت notification للأدمن
+    if (done) {
+      final teamDoc = await _teams.doc(teamId).get();
+      final teamName =
+          (teamDoc.data() as Map<String, dynamic>)['name'] as String? ?? '';
+      await addNotification(
+        title: '🏆 فريق خلص!',
+        body: '"$teamName" خلص كل التحديات!',
+        teamName: teamName,
+      );
+    }
   }
 
-  /// Stream لحالة كل الفرق (Admin Dashboard - realtime)
+  // ─── Notifications ─────────────────────────────
+
+  /// أضف notification جديدة
+  static Future<void> addNotification({
+    required String title,
+    required String body,
+    required String teamName,
+  }) async {
+    await _notifications.add({
+      'title': title,
+      'body': body,
+      'teamName': teamName,
+      'read': false,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// علّم كل الـ notifications كـ مقروءة
+  static Future<void> markAllNotificationsRead() async {
+    final snap =
+    await _notifications.where('read', isEqualTo: false).get();
+    final batch = _db.batch();
+    for (final doc in snap.docs) {
+      batch.update(doc.reference, {'read': true});
+    }
+    await batch.commit();
+  }
+
+  /// Stream للـ notifications الغير مقروءة
+  static Stream<List<Map<String, dynamic>>> unreadNotificationsStream() {
+    return _notifications
+        .where('read', isEqualTo: false)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snap) => snap.docs.map((d) {
+      return {'id': d.id, ...(d.data() as Map<String, dynamic>)};
+    }).toList());
+  }
+
+  /// Stream لكل الـ notifications (للتاريخ)
+  static Stream<List<Map<String, dynamic>>> allNotificationsStream() {
+    return _notifications
+        .orderBy('createdAt', descending: true)
+        .limit(20)
+        .snapshots()
+        .map((snap) => snap.docs.map((d) {
+      return {'id': d.id, ...(d.data() as Map<String, dynamic>)};
+    }).toList());
+  }
+
+  /// Stream لحالة كل الفرق
   static Stream<List<Map<String, dynamic>>> teamsStream() {
     return _teams
         .orderBy('startedAt', descending: false)
         .snapshots()
         .map((snap) => snap.docs.map((d) {
-              return {'id': d.id, ...(d.data() as Map<String, dynamic>)};
-            }).toList());
+      return {'id': d.id, ...(d.data() as Map<String, dynamic>)};
+    }).toList());
   }
 }

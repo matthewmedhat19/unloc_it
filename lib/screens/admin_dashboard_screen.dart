@@ -4,13 +4,18 @@ import '../theme/app_theme.dart';
 import '../services/challenge_service.dart';
 import 'team_login_screen.dart';
 
-class AdminDashboardScreen extends StatelessWidget {
+class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
 
   @override
+  State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
+}
+
+class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+  @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3,
+      length: 2,
       child: Scaffold(
         body: SafeArea(
           child: Column(
@@ -22,32 +27,102 @@ class AdminDashboardScreen extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    GestureDetector(
-                      onTap: () => Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(
-                            builder: (_) => const TeamLoginScreen()),
-                            (route) => false,
-                      ),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: AppTheme.surface,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: AppTheme.border),
+                    // logout + notification bell
+                    Row(
+                      children: [
+                        // notification bell
+                        StreamBuilder<List<Map<String, dynamic>>>(
+                          stream:
+                          ChallengeService.unreadNotificationsStream(),
+                          builder: (context, snap) {
+                            final unread = snap.data ?? [];
+                            return GestureDetector(
+                              onTap: () => _showNotificationsSheet(context),
+                              child: Container(
+                                margin: const EdgeInsets.only(left: 8),
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: unread.isNotEmpty
+                                      ? AppTheme.primary.withOpacity(0.15)
+                                      : AppTheme.surface,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: unread.isNotEmpty
+                                        ? AppTheme.primary.withOpacity(0.4)
+                                        : AppTheme.border,
+                                  ),
+                                ),
+                                child: Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    Icon(
+                                      Icons.notifications_rounded,
+                                      size: 20,
+                                      color: unread.isNotEmpty
+                                          ? AppTheme.primary
+                                          : AppTheme.textSecondary,
+                                    ),
+                                    if (unread.isNotEmpty)
+                                      Positioned(
+                                        top: -4,
+                                        right: -4,
+                                        child: Container(
+                                          width: 16,
+                                          height: 16,
+                                          decoration: const BoxDecoration(
+                                            color: Colors.redAccent,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Center(
+                                            child: Text(
+                                              '${unread.length}',
+                                              style: const TextStyle(
+                                                  fontSize: 9,
+                                                  color: Colors.white,
+                                                  fontWeight:
+                                                  FontWeight.w700),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.logout_rounded,
-                                size: 14, color: AppTheme.textSecondary),
-                            SizedBox(width: 4),
-                            Text('خروج',
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    color: AppTheme.textSecondary)),
-                          ],
+                        const SizedBox(width: 8),
+                        // logout
+                        GestureDetector(
+                          onTap: () =>
+                              Navigator.of(context).pushAndRemoveUntil(
+                                MaterialPageRoute(
+                                    builder: (_) => const TeamLoginScreen()),
+                                    (route) => false,
+                              ),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: AppTheme.surface,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: AppTheme.border),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.logout_rounded,
+                                    size: 14,
+                                    color: AppTheme.textSecondary),
+                                SizedBox(width: 4),
+                                Text('خروج',
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        color: AppTheme.textSecondary)),
+                              ],
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                     const Text(
                       'لوحة التحكم',
@@ -82,7 +157,6 @@ class AdminDashboardScreen extends StatelessWidget {
                   tabs: const [
                     Tab(text: 'الفرق'),
                     Tab(text: 'التحديات'),
-                    Tab(text: 'الترتيب'),
                   ],
                 ),
               ),
@@ -94,7 +168,6 @@ class AdminDashboardScreen extends StatelessWidget {
                   children: [
                     _TeamsTab(),
                     _ChallengesTab(),
-                    _LeaderboardTab(),
                   ],
                 ),
               ),
@@ -103,6 +176,143 @@ class AdminDashboardScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _showNotificationsSheet(BuildContext context) async {
+    await ChallengeService.markAllNotificationsRead();
+    if (!context.mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.surface,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SizedBox(
+          height: MediaQuery.of(ctx).size.height * 0.7,
+          child: StreamBuilder<List<Map<String, dynamic>>>(
+            stream: ChallengeService.allNotificationsStream(),
+            builder: (ctx, snap) {
+              final notifications = snap.data ?? [];
+              return Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 36, height: 4,
+                        decoration: BoxDecoration(
+                          color: AppTheme.border,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text('الإشعارات',
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textPrimary)),
+                    const SizedBox(height: 16),
+                    if (notifications.isEmpty)
+                      const Expanded(
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.notifications_off_outlined,
+                                  size: 40, color: AppTheme.textSecondary),
+                              SizedBox(height: 8),
+                              Text('مفيش إشعارات لسه',
+                                  style: TextStyle(color: AppTheme.textSecondary)),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      Expanded(
+                        child: ListView.separated(
+                          itemCount: notifications.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 8),
+                          itemBuilder: (ctx, i) {
+                            final notif = notifications[i];
+                            final bool isRead = notif['read'] as bool? ?? true;
+                            final ts = notif['createdAt'] as Timestamp?;
+                            final time = ts != null ? _formatTime(ts.toDate()) : '';
+                            return Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: isRead
+                                    ? AppTheme.background
+                                    : AppTheme.primary.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: isRead
+                                      ? AppTheme.border
+                                      : AppTheme.primary.withOpacity(0.3),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      children: [
+                                        Text(notif['title'] as String? ?? '',
+                                            style: const TextStyle(
+                                                color: AppTheme.textPrimary,
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600)),
+                                        const SizedBox(height: 2),
+                                        Text(notif['body'] as String? ?? '',
+                                            style: const TextStyle(
+                                                color: AppTheme.textSecondary,
+                                                fontSize: 12)),
+                                        const SizedBox(height: 4),
+                                        Text(time,
+                                            style: const TextStyle(
+                                                color: AppTheme.textSecondary,
+                                                fontSize: 10)),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    width: 36, height: 36,
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.primary.withOpacity(0.15),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Center(
+                                      child: Text('🏆', style: TextStyle(fontSize: 16)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  String _formatTime(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 1) return 'دلوقتي';
+    if (diff.inMinutes < 60) return 'من \${diff.inMinutes} دقيقة';
+    if (diff.inHours < 24) return 'من \${diff.inHours} ساعة';
+    return 'من \${diff.inDays} يوم';
   }
 }
 
@@ -567,251 +777,6 @@ class _ChallengesTab extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-// ─── Leaderboard Tab ───────────────────────────────────────────────────────
-
-class _LeaderboardTab extends StatelessWidget {
-  const _LeaderboardTab();
-
-  // حسب وقت الإنهاء — اللي خلص الأول يبقى أول
-  List<Map<String, dynamic>> _sortTeams(List<Map<String, dynamic>> teams) {
-    final done = teams.where((t) => t['done'] == true).toList()
-      ..sort((a, b) {
-        final aTime = a['completedAt'];
-        final bTime = b['completedAt'];
-        if (aTime == null && bTime == null) return 0;
-        if (aTime == null) return 1;
-        if (bTime == null) return -1;
-        return (aTime as Timestamp).compareTo(bTime as Timestamp);
-      });
-
-    final inProgress = teams.where((t) => t['done'] != true).toList()
-      ..sort((a, b) {
-        final aIdx = a['currentChallengeIndex'] as int? ?? 0;
-        final bIdx = b['currentChallengeIndex'] as int? ?? 0;
-        return bIdx.compareTo(aIdx); // الأكتر تقدماً فوق
-      });
-
-    return [...done, ...inProgress];
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: ChallengeService.teamsStream(),
-      builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(
-              child: CircularProgressIndicator(color: AppTheme.primary));
-        }
-
-        final teams = _sortTeams(snap.data ?? []);
-
-        if (teams.isEmpty) {
-          return const Center(
-            child: Text('مفيش فرق لسه',
-                style: TextStyle(color: AppTheme.textSecondary)),
-          );
-        }
-
-        return FutureBuilder<int>(
-          future: ChallengeService.getChallenges().then((c) => c.length),
-          builder: (context, snapTotal) {
-            final total = snapTotal.data ?? 1;
-
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                children: [
-                  // top 3 podium
-                  if (teams.length >= 3) ...[
-                    const SizedBox(height: 8),
-                    _Podium(teams: teams.take(3).toList(), total: total),
-                    const SizedBox(height: 20),
-                  ],
-
-                  // rest of teams
-                  if (teams.length > 3)
-                    Expanded(
-                      child: ListView.separated(
-                        itemCount: teams.length - 3,
-                        separatorBuilder: (_, __) =>
-                        const SizedBox(height: 8),
-                        itemBuilder: (context, i) {
-                          final team = teams[i + 3];
-                          final rank = i + 4;
-                          final bool done = team['done'] as bool? ?? false;
-                          final int current =
-                              team['currentChallengeIndex'] as int? ?? 0;
-
-                          return Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 12),
-                            decoration: BoxDecoration(
-                              color: AppTheme.surface,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: AppTheme.border),
-                            ),
-                            child: Row(
-                              children: [
-                                // progress
-                                Expanded(
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(4),
-                                    child: LinearProgressIndicator(
-                                      value: total == 0
-                                          ? 0
-                                          : current / total,
-                                      backgroundColor: AppTheme.border,
-                                      color: AppTheme.primary,
-                                      minHeight: 4,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                // name + status
-                                Column(
-                                  crossAxisAlignment:
-                                  CrossAxisAlignment.end,
-                                  children: [
-                                    Text(
-                                      team['name'] as String? ?? '',
-                                      style: const TextStyle(
-                                          color: AppTheme.textPrimary,
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600),
-                                    ),
-                                    Text(
-                                      done
-                                          ? 'خلص ✓'
-                                          : 'تحدي $current من $total',
-                                      style: TextStyle(
-                                          fontSize: 11,
-                                          color: done
-                                              ? AppTheme.success
-                                              : AppTheme.textSecondary),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(width: 12),
-                                // rank badge
-                                Container(
-                                  width: 30,
-                                  height: 30,
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.border,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      '$rank',
-                                      style: const TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                          color: AppTheme.textSecondary),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    )
-                  else
-                    const Expanded(child: SizedBox()),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-}
-
-// ─── Podium ────────────────────────────────────────────────────────────────
-
-class _Podium extends StatelessWidget {
-  final List<Map<String, dynamic>> teams;
-  final int total;
-
-  const _Podium({required this.teams, required this.total});
-
-  @override
-  Widget build(BuildContext context) {
-    // ترتيب البودويم: 2 - 1 - 3
-    final order = [1, 0, 2];
-    final heights = [80.0, 110.0, 60.0];
-    final colors = [
-      const Color(0xFFC0C0C0), // فضي
-      const Color(0xFFF0B429), // ذهبي
-      const Color(0xFFCD7F32), // برونزي
-    ];
-    final medals = ['🥈', '🥇', '🥉'];
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: List.generate(3, (i) {
-        final teamIndex = order[i];
-        final team = teams[teamIndex];
-        final bool done = team['done'] as bool? ?? false;
-        final int current = team['currentChallengeIndex'] as int? ?? 0;
-
-        return Expanded(
-          child: Column(
-            children: [
-              // medal + name
-              Text(medals[i], style: const TextStyle(fontSize: 20)),
-              const SizedBox(height: 4),
-              Text(
-                team['name'] as String? ?? '',
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: colors[i],
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                done ? 'خلص ✓' : '$current/$total',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: done ? AppTheme.success : AppTheme.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 6),
-              // podium block
-              Container(
-                height: heights[i],
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                decoration: BoxDecoration(
-                  color: colors[i].withOpacity(0.15),
-                  borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(10)),
-                  border: Border.all(color: colors[i].withOpacity(0.4)),
-                ),
-                child: Center(
-                  child: Text(
-                    '${teamIndex + 1}',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                      color: colors[i],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      }),
     );
   }
 }
